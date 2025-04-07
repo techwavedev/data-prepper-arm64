@@ -37,16 +37,26 @@ jobs:
       - name: Create Dockerfile
         run: |
           JAR_FILE=$(find dp-src/data-prepper-dist/build/libs -name "data-prepper-*-all.jar" | head -n 1)
+          JAR_BASENAME=$(basename "$JAR_FILE")
           echo "Using JAR: $JAR_FILE"
+          
           cat <<EOF > dp-src/Dockerfile
           FROM amazoncorretto:17-alpine
           RUN addgroup -S dataprepper && adduser -S dataprepper -G dataprepper
           WORKDIR /usr/share/data-prepper
-          COPY $(basename $JAR_FILE) data-prepper.jar
+          COPY ${JAR_BASENAME} ${JAR_BASENAME}
+          RUN mkdir -p /usr/share/data-prepper/config
           USER dataprepper
-          CMD ["java", "-jar", "data-prepper.jar"]
+          ENTRYPOINT ["java", "-jar", "${JAR_BASENAME}", "/usr/share/data-prepper/config/data-prepper-config.yaml"]
           EOF
-          cp "\$JAR_FILE" "dp-src/$(basename \$JAR_FILE)"
+          
+          cp "$JAR_FILE" "dp-src/$JAR_BASENAME"
+          
+          # Create a basic config file for container initialization
+          mkdir -p dp-src/config
+          cat <<EOF > dp-src/config/data-prepper-config.yaml
+          ssl: false
+          EOF
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
