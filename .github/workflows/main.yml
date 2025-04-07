@@ -3,7 +3,7 @@ name: Auto-Build Data Prepper ARM64 Image
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 3 * * *'
+    - cron: '0 3 * * *'  # Executa todo dia às 03:00 UTC
 
 permissions:
   contents: read
@@ -61,4 +61,6 @@ jobs:
           context: ./dp-src
           push: true
           platforms: linux/arm64
-          tags: ghcr.io/${{ github.repository_owner }}/data-prepper:arm64-${{ steps.get_version.outputs.tag }}
+          tags: |
+            ghcr.io/techwavedev/data-prepper:arm64-${{ steps.get_version.outputs.tag }}
+            ghcr.io/techwavedev/data-prepper:arm64-latest
