@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: '0 3 * * *'
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build-arm64:
     runs-on: ubuntu-latest
@@ -14,7 +18,6 @@ jobs:
         id: get_version
         run: |
           tag=$(curl -s https://api.github.com/repos/opensearch-project/data-prepper/releases/latest | jq -r .tag_name)
-          echo "Latest version is $tag"
           echo "tag=$tag" >> $GITHUB_OUTPUT
 
       - name: Clone Data Prepper source at tag
@@ -31,7 +34,7 @@ jobs:
         working-directory: ./dp-src
         run: ./gradlew :data-prepper-core:build --no-daemon
 
-      - name: Copy Dockerfile
+      - name: Create Dockerfile
         run: |
           cat <<EOF > dp-src/Dockerfile
           FROM amazoncorretto:17-alpine
@@ -45,11 +48,17 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Build ARM64 image (no push)
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ARM64 image
         uses: docker/build-push-action@v5
         with:
           context: ./dp-src
-          push: false
-          load: false
+          push: true
           platforms: linux/arm64
-          tags: data-prepper:arm64-${{ steps.get_version.outputs.tag }}
+          tags: ghcr.io/${{ github.repository_owner }}/data-prepper:arm64-${{ steps.get_version.outputs.tag }}
