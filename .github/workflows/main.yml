@@ -3,7 +3,7 @@ name: Auto-Build Data Prepper ARM64 Image
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 3 * * *'  # Executa todo dia às 03:00 UTC
+    - cron: '0 3 * * *'
 
 permissions:
   contents: read
@@ -30,9 +30,9 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Build Data Prepper jar
+      - name: Build Data Prepper distribution (executable jar)
         working-directory: ./dp-src
-        run: ./gradlew :data-prepper-core:build --no-daemon
+        run: ./gradlew :data-prepper-dist:shadowJar --no-daemon
 
       - name: Create Dockerfile
         run: |
@@ -40,7 +40,7 @@ jobs:
           FROM amazoncorretto:17-alpine
           RUN addgroup -S dataprepper && adduser -S dataprepper -G dataprepper
           WORKDIR /usr/share/data-prepper
-          COPY data-prepper-core/build/libs/data-prepper-core-*.jar data-prepper.jar
+          COPY data-prepper-dist/build/libs/data-prepper-*.jar data-prepper.jar
           USER dataprepper
           CMD ["java", "-jar", "data-prepper.jar"]
           EOF
