@@ -44,16 +44,16 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Build Data Prepper distribution (executable JAR)
+      - name: Build all Data Prepper shadow JARs
         working-directory: ./dp-src
-        run: ./gradlew :data-prepper-dist:shadowJar --no-daemon
+        run: ./gradlew shadowJar --no-daemon
 
       - name: Prepare Dockerfile and configuration
         run: |
-          JAR_FILE=$(find dp-src/data-prepper-dist/build/libs -name "data-prepper-*-all.jar" | head -n 1)
+          JAR_FILE=$(find dp-src -type f -name "*-all.jar" -o -name "*-shadow.jar" | head -n 1)
           JAR_BASENAME=$(basename "$JAR_FILE")
           echo "Using JAR: $JAR_FILE"
-
+      
           cat <<EOF > dp-src/Dockerfile
           FROM amazoncorretto:17-alpine
           RUN addgroup -S dataprepper && adduser -S dataprepper -G dataprepper
@@ -63,10 +63,9 @@ jobs:
           USER dataprepper
           ENTRYPOINT ["java", "-jar", "${JAR_BASENAME}", "/usr/share/data-prepper/config/data-prepper-config.yaml"]
           EOF
-
+      
           cp "$JAR_FILE" "dp-src/$JAR_BASENAME"
-
-          # Create a basic config file for container initialization
+      
           mkdir -p dp-src/config
           cat <<EOF > dp-src/config/data-prepper-config.yaml
           ssl: false
