@@ -50,7 +50,7 @@ jobs:
 
       - name: Prepare Dockerfile and configuration
         run: |
-          JAR_FILE=$(find dp-src -type f -name "data-prepper*.jar" | grep -v original | head -n 1)
+          JAR_FILE=$(find dp-src -type f -name "data-prepper*.jar" | grep -v -e original -e sources | head -n 1)
           JAR_BASENAME=$(basename "$JAR_FILE")
           echo "Using JAR: $JAR_FILE"
 
