@@ -1,0 +1,56 @@
+name: Build and Push ARM64 Data Prepper Image
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-arm64:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get latest release tag from upstream
+        id: get_version
+        run: |
+          tag=$(curl -s https://api.github.com/repos/opensearch-project/data-prepper/releases/latest | jq -r .tag_name)
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+
+      - name: Clone Data Prepper at tag
+        run: |
+          git clone --depth 1 --branch "${{ steps.get_version.outputs.tag }}" https://github.com/opensearch-project/data-prepper.git dp-src
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Build jar using upstream logic
+        working-directory: ./dp-src
+        run: ./gradlew :data-prepper-dist:shadowJar --no-daemon
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and push ARM64 image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./dp-src
+          file: ./dp-src/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ghcr.io/techwavedev/data-prepper:arm64-${{ steps.get_version.outputs.tag }}
+            ghcr.io/techwavedev/data-prepper:arm64-latest
