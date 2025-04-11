@@ -3,7 +3,7 @@ name: Auto-Build Data Prepper ARM64 Image
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 3 * * *'
+    - cron: '0 3 * * *'  # Runs daily at 03:00 UTC
 
 permissions:
   contents: read
@@ -14,13 +14,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Get latest release tag from upstream
+      - name: Set up QEMU for ARM64 emulation
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Retrieve latest release tag from upstream
         id: get_version
         run: |
           tag=$(curl -s https://api.github.com/repos/opensearch-project/data-prepper/releases/latest | jq -r .tag_name)
           echo "tag=$tag" >> $GITHUB_OUTPUT
 
-      - name: Clone Data Prepper source at tag
+      - name: Clone Data Prepper source at specific tag
         run: |
           git clone --depth 1 --branch "${{ steps.get_version.outputs.tag }}" https://github.com/opensearch-project/data-prepper.git dp-src
 
@@ -30,16 +44,16 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Build Data Prepper distribution (executable jar)
+      - name: Build Data Prepper distribution (executable JAR)
         working-directory: ./dp-src
         run: ./gradlew :data-prepper-dist:shadowJar --no-daemon
 
-      - name: Create Dockerfile
+      - name: Prepare Dockerfile and configuration
         run: |
           JAR_FILE=$(find dp-src/data-prepper-dist/build/libs -name "data-prepper-*-all.jar" | head -n 1)
           JAR_BASENAME=$(basename "$JAR_FILE")
           echo "Using JAR: $JAR_FILE"
-          
+
           cat <<EOF > dp-src/Dockerfile
           FROM amazoncorretto:17-alpine
           RUN addgroup -S dataprepper && adduser -S dataprepper -G dataprepper
@@ -49,27 +63,24 @@ jobs:
           USER dataprepper
           ENTRYPOINT ["java", "-jar", "${JAR_BASENAME}", "/usr/share/data-prepper/config/data-prepper-config.yaml"]
           EOF
-          
+
           cp "$JAR_FILE" "dp-src/$JAR_BASENAME"
-          
+
           # Create a basic config file for container initialization
           mkdir -p dp-src/config
           cat <<EOF > dp-src/config/data-prepper-config.yaml
           ssl: false
           EOF
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push ARM64 image
-        uses: docker/build-push-action@v5
+      - name: Build and push ARM64 Docker image
+        uses: docker/build-push-action@v6
         with:
           context: ./dp-src
           push: true
@@ -77,3 +88,5 @@ jobs:
           tags: |
             ghcr.io/techwavedev/data-prepper:arm64-${{ steps.get_version.outputs.tag }}
             ghcr.io/techwavedev/data-prepper:arm64-latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache
