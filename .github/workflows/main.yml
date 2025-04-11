@@ -3,14 +3,14 @@ name: Auto-Build Data Prepper ARM64 Image
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 3 * * *'  # Runs daily at 03:00 UTC
+    - cron: '0 3 * * *'  # Daily at 03:00 UTC
 
 permissions:
   contents: read
   packages: write
 
 jobs:
-  build-arm64:
+  build-multiarch:
     runs-on: ubuntu-latest
 
     steps:
@@ -44,16 +44,16 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Build all Data Prepper shadow JARs
+      - name: Build Data Prepper
         working-directory: ./dp-src
-        run: ./gradlew shadowJar --no-daemon
+        run: ./gradlew build --no-daemon
 
       - name: Prepare Dockerfile and configuration
         run: |
-          JAR_FILE=$(find dp-src -type f -name "*-all.jar" -o -name "*-shadow.jar" | head -n 1)
+          JAR_FILE=$(find dp-src -type f -name "data-prepper*.jar" | grep -v original | head -n 1)
           JAR_BASENAME=$(basename "$JAR_FILE")
           echo "Using JAR: $JAR_FILE"
-      
+
           cat <<EOF > dp-src/Dockerfile
           FROM amazoncorretto:17-alpine
           RUN addgroup -S dataprepper && adduser -S dataprepper -G dataprepper
@@ -63,9 +63,9 @@ jobs:
           USER dataprepper
           ENTRYPOINT ["java", "-jar", "${JAR_BASENAME}", "/usr/share/data-prepper/config/data-prepper-config.yaml"]
           EOF
-      
+
           cp "$JAR_FILE" "dp-src/$JAR_BASENAME"
-      
+
           mkdir -p dp-src/config
           cat <<EOF > dp-src/config/data-prepper-config.yaml
           ssl: false
@@ -78,7 +78,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      #muli image types
       - name: Build and push multi-arch Docker image
         uses: docker/build-push-action@v6
         with:
