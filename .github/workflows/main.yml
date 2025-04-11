@@ -46,7 +46,7 @@ jobs:
 
       - name: Build Data Prepper
         working-directory: ./dp-src
-        run: ./gradlew build --no-daemon
+        run: ./gradlew :data-prepper-core:build --no-daemon
 
       - name: Prepare Dockerfile and configuration
         run: |
